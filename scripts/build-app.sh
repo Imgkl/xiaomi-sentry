@@ -2,7 +2,7 @@
 # Builds "Xiaomi Sentry.app" into ./build.
 # Usage: scripts/build-app.sh [--open | --install]
 #   --open     start the app from ./build
-#   --install  copy it to /Applications and start it from there
+#   --install  move it to /Applications (no second copy stays in ./build) and start it
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -29,7 +29,7 @@ case "${1:-}" in
   --install)
     pkill -x XiaomiSentry 2>/dev/null || true
     rm -rf "/Applications/Xiaomi Sentry.app"
-    cp -R "$APP" /Applications/
+    mv "$APP" /Applications/
     open "/Applications/Xiaomi Sentry.app"
     echo "Installed /Applications/Xiaomi Sentry.app"
     ;;
