@@ -1,0 +1,10 @@
+# SwiftPM and app build output
+.build/
+.swiftpm/
+build/
+
+# macOS
+.DS_Store
+
+# Local notes (server checks, audits); not part of the project
+notes/
