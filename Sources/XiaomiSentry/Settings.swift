@@ -45,7 +45,10 @@ enum AppSettings {
 
     /// Top-left corner of the panel in screen coordinates, so it reopens where it was left.
     static var panelTopLeft: NSPoint? {
-        get { (defaults.array(forKey: "panelTopLeft") as? [Double]).map { NSPoint(x: $0[0], y: $0[1]) } }
+        get {
+            guard let xy = defaults.array(forKey: "panelTopLeft") as? [Double], xy.count == 2 else { return nil }
+            return NSPoint(x: xy[0], y: xy[1])
+        }
         set { defaults.set(newValue.map { [Double($0.x), Double($0.y)] }, forKey: "panelTopLeft") }
     }
 
