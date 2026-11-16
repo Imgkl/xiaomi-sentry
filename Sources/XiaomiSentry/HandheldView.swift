@@ -40,25 +40,26 @@ struct PanelLayout: Equatable {
     }
 }
 
+/// The window frame is the only source of size: the content fills whatever frame the panel has,
+/// so a corner drag can never show clipped or empty edges while the window and content update.
 struct PanelRoot: View {
-    @EnvironmentObject var model: AppModel
-
     var body: some View {
-        HandheldDevice()
-            .fixedSize()
+        GeometryReader { geometry in
+            HandheldDevice(layout: PanelLayout(width: geometry.size.width))
+        }
     }
 }
 
 struct HandheldDevice: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
+    let layout: PanelLayout
 
     var body: some View {
         let dark = scheme == .dark
-        let layout = model.layout
         VStack(spacing: 0) {
             Group {
-                if model.showingSetup { SetupScreen() } else { LiveScreen() }
+                if model.showingSetup { SetupScreen() } else { LiveScreen(layout: layout) }
             }
             // The screen is dark in both themes, so its controls always use dark-mode colors.
             .environment(\.colorScheme, .dark)
@@ -167,6 +168,7 @@ struct ScreenBezel: View {
 
 struct LiveScreen: View {
     @EnvironmentObject var model: AppModel
+    let layout: PanelLayout
 
     var body: some View {
         ZStack {
@@ -184,7 +186,7 @@ struct LiveScreen: View {
             VideoSurface(layer: model.player.displayLayer)
             #endif
             // Radii grow with the screen so a resized panel keeps the same soft edge as the 292 pt one.
-            let vignetteScale = model.layout.screenSize.width / 292
+            let vignetteScale = layout.screenSize.width / 292
             RadialGradient(colors: [.clear, .black.opacity(0.42)], center: .center,
                            startRadius: 100 * vignetteScale, endRadius: 200 * vignetteScale)
                 .allowsHitTesting(false)

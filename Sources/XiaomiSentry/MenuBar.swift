@@ -184,7 +184,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let old = panel.frame
         let maxX = (panel.screen ?? NSScreen.main)?.visibleFrame.maxX ?? .infinity
         let x = min(old.minX, maxX - 6 - size.width)
-        panel.setFrame(NSRect(x: x, y: old.maxY - size.height, width: size.width, height: size.height), display: true)
+        panel.setFrame(NSRect(x: x, y: old.maxY - size.height, width: size.width, height: size.height), display: false)
+        // Lay out and draw the content in the same pass as the frame change, or the drag shows
+        // a frame where the content still has the previous size: clipped or empty edges.
+        panel.contentView?.layoutSubtreeIfNeeded()
+        panel.displayIfNeeded()
         // The system shadow follows the drawn outline, so rebuild it once SwiftUI has drawn the new size.
         DispatchQueue.main.async { [weak self] in self?.panel.invalidateShadow() }
     }
