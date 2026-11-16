@@ -185,6 +185,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let maxX = (panel.screen ?? NSScreen.main)?.visibleFrame.maxX ?? .infinity
         let x = min(old.minX, maxX - 6 - size.width)
         panel.setFrame(NSRect(x: x, y: old.maxY - size.height, width: size.width, height: size.height), display: true)
+        // The system shadow follows the drawn outline, so rebuild it once SwiftUI has drawn the new size.
+        DispatchQueue.main.async { [weak self] in self?.panel.invalidateShadow() }
     }
 
     func hide() {

@@ -112,13 +112,7 @@ struct ResizeGrip: View {
         }
         .frame(width: 22, height: 22)
         .contentShape(Rectangle())
-        .onHover { inside in
-            if inside {
-                NSCursor.frameResize(position: .bottomRight, directions: .all).push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .pointerStyle(.frameResize(position: .bottomTrailing))
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in
                 let pointerX = NSEvent.mouseLocation.x
