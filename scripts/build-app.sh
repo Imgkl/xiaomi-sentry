@@ -15,9 +15,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/XiaomiSentry"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 
-# Use an Apple Development identity when one exists: Local Network privacy tracks the
-# app by its signature. Otherwise sign ad hoc, which works but may ask again after rebuilds.
-IDENTITY="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')"
+# Signing identity: the one named in .signing-identity (gitignored; a name or SHA-1 from
+# `security find-identity -v -p codesigning`), else the first Apple Development identity,
+# else ad hoc. Local Network privacy tracks the app by its signature, so keep it stable.
+IDENTITY="$(cat .signing-identity 2>/dev/null || security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')"
 codesign --force --options runtime --sign "${IDENTITY:--}" "$APP"
 echo "Built $APP (signed with ${IDENTITY:-ad hoc identity})"
 

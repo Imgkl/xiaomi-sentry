@@ -17,18 +17,18 @@ enum Snapshot {
             let model = AppModel()
             model.demoPicture = demoPicture()
             configure(model)
-            guard let png = render(PanelRoot().environmentObject(model), scheme: scheme) else { continue }
+            guard let png = render(PanelRoot().environmentObject(model), size: model.layout.size, scheme: scheme) else { continue }
             let file = url.appendingPathComponent("\(name).png")
             try? png.write(to: file)
             print(file.path)
         }
     }
 
+
     /// Renders through a real NSHostingView in an offscreen window, so AppKit text fields draw too.
-    private static func render<V: View>(_ view: V, scheme: ColorScheme) -> Data? {
+    private static func render<V: View>(_ view: V, size: CGSize, scheme: ColorScheme) -> Data? {
         let host = NSHostingView(rootView: view)
-        host.sizingOptions = [.intrinsicContentSize]
-        let size = host.intrinsicContentSize
+        host.sizingOptions = []
         let margin: CGFloat = 24
         let canvas = NSView(frame: NSRect(x: 0, y: 0, width: size.width + margin * 2, height: size.height + margin * 2))
         canvas.wantsLayer = true
