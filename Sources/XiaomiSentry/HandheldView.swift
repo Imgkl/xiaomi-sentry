@@ -183,7 +183,10 @@ struct LiveScreen: View {
             #else
             VideoSurface(layer: model.player.displayLayer)
             #endif
-            RadialGradient(colors: [.clear, .black.opacity(0.42)], center: .center, startRadius: 100, endRadius: 200)
+            // Radii grow with the screen so a resized panel keeps the same soft edge as the 292 pt one.
+            let vignetteScale = model.layout.screenSize.width / 292
+            RadialGradient(colors: [.clear, .black.opacity(0.42)], center: .center,
+                           startRadius: 100 * vignetteScale, endRadius: 200 * vignetteScale)
                 .allowsHitTesting(false)
 
             // Under the chips, so switching camera works while a camera is offline or connecting.
