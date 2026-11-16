@@ -40,6 +40,8 @@ final class AppModel: ObservableObject {
         didSet { AppSettings.region = region }
     }
 
+    @Published private(set) var layout = PanelLayout(width: AppSettings.panelWidth)
+
     let player = StreamPlayer()
     /// Asks the menu bar controller to show the panel.
     var requestOpen: (() -> Void)?
@@ -249,6 +251,14 @@ final class AppModel: ObservableObject {
 
     func endHold() {
         heldOperation = nil
+    }
+
+    func resize(to width: CGFloat) {
+        layout = PanelLayout(width: width)
+    }
+
+    func endResize() {
+        AppSettings.panelWidth = layout.width
     }
 
     private func canMove() -> Bool {

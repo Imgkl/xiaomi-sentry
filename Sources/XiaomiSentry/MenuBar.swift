@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import ServiceManagement
 import SwiftUI
 
@@ -97,13 +98,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// app's own menu bar icon as an outside click, so the icon's action that follows must not reopen.
     private var outsideClose: (time: Date, point: NSPoint)?
     private var keyMonitor: Any?
+    private var layoutSubscription: AnyCancellable?
 
     init(model: AppModel) {
         self.model = model
         let host = NSHostingView(rootView: PanelRoot().environmentObject(model))
-        // Intrinsic size only: the panel takes the SwiftUI size, and show() places it.
-        host.sizingOptions = [.intrinsicContentSize]
-        host.frame = NSRect(origin: .zero, size: host.intrinsicContentSize)
+        // The panel size comes from model.layout; the hosting view must not drive it.
+        host.sizingOptions = []
         panel = FloatingPanel(content: host)
         super.init()
         applyAppearance()
@@ -117,6 +118,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         model.requestOpen = { [weak self] in self?.show() }
+        layoutSubscription = model.$layout.sink { [weak self] layout in
+            self?.resizePanel(to: layout.size)
+        }
         // A held arrow key never gets its key-up once the panel loses focus, so stop the hold here.
         NotificationCenter.default.addObserver(self, selector: #selector(panelResignedKey),
                                                name: NSWindow.didResignKeyNotification, object: panel)
@@ -144,17 +148,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             panel.makeKeyAndOrderFront(nil)
             return
         }
-        let size = panel.contentView?.intrinsicContentSize ?? .zero
+        let size = model.layout.size
         // On macOS 27 the status item's own window can be a 0x0 placeholder, so its frame
         // is not a safe anchor. Use the pointer (it is on the icon after a click) and the
         // screen it is on. The menu bar is the gap above that screen's visible frame.
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
-        let margin = Metrics.shadowMargin
         var x = mouse.x - size.width / 2
-        x = min(max(x, visible.minX - margin + 6), visible.maxX - size.width + margin - 6)
-        let y = visible.maxY - 6 - size.height + margin
+        x = min(max(x, visible.minX + 6), visible.maxX - size.width - 6)
+        let y = visible.maxY - 6 - size.height
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
@@ -173,6 +176,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             return self.handleKey(event) ? nil : event
         }
         model.panelDidOpen()
+    }
+
+    /// Keeps the top-left corner fixed so the panel grows down and to the right from under the menu bar.
+    private func resizePanel(to size: CGSize) {
+        guard panel.isVisible else { return }
+        let old = panel.frame
+        let maxX = (panel.screen ?? NSScreen.main)?.visibleFrame.maxX ?? .infinity
+        let x = min(old.minX, maxX - 6 - size.width)
+        panel.setFrame(NSRect(x: x, y: old.maxY - size.height, width: size.width, height: size.height), display: true)
     }
 
     func hide() {

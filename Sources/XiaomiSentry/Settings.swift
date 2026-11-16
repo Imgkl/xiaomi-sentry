@@ -37,6 +37,11 @@ enum AppSettings {
         set { defaults.set(newValue.rawValue, forKey: "appearance") }
     }
 
+    static var panelWidth: CGFloat {
+        get { defaults.object(forKey: "panelWidth") as? Double ?? 320 }
+        set { defaults.set(newValue, forKey: "panelWidth") }
+    }
+
     static var lastStream: String? {
         get { defaults.string(forKey: "lastStream") }
         set { defaults.set(newValue, forKey: "lastStream") }

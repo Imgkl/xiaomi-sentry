@@ -45,6 +45,7 @@ On first use macOS asks for Local Network access. Allow it, or the app cannot re
    - Left key: pan. Right key: tilt. Arrow keys work too. Hold to keep moving.
    - Round chip or dots: switch camera. Keys 1 to 9 also switch.
    - Right-click the icon: cameras, appearance, open at login, settings, reconnect, quit.
+   - Drag the panel's bottom-right corner to make the picture bigger. The size is remembered.
    - Esc or a click outside closes the panel.
 
 The stream stays open for 60 seconds after you close the panel, so a quick reopen is instant.

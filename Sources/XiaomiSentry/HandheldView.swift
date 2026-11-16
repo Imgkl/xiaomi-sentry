@@ -4,25 +4,40 @@ import SwiftUI
 // Handheld design: a small plastic-style body, an inset screen with the live picture,
 // and two hardware keys. The left key pans, the right key tilts.
 
-enum Metrics {
-    static let deviceWidth: CGFloat = 320
+/// Every size in the panel, derived from its width. The screen keeps the 292 x 201 shape it has at 320 wide.
+struct PanelLayout: Equatable {
+    static let widths: ClosedRange<CGFloat> = 320...640
     /// Concentric corners: everything inside the body uses the body radius minus the inset,
     /// and the keys are capsules of exactly that radius, so every gap stays 14 pt around the curves.
     static let inset: CGFloat = 14
     static let bodyRadius: CGFloat = 41
     static let innerRadius: CGFloat = bodyRadius - inset
     static let keyHeight: CGFloat = innerRadius * 2
-    static let screenSize = CGSize(width: deviceWidth - inset * 2, height: 201)
     /// Camera name engraved between screen and keys in the live view.
     static let engravingHeight: CGFloat = 19
     static let engravingGap: CGFloat = 8
-    /// Setup has no engraving: its screen takes that space, keeping the body the same size,
-    /// and the gap above the keys becomes the regular inset.
-    static let setupScreenHeight = screenSize.height + engravingHeight + engravingGap - inset
     /// Content padding inside the screen, clear of its 27 pt corners.
     static let screenPadding: CGFloat = 18
-    /// Transparent edge around the body. The system shadow is drawn outside the window, so none is needed.
-    static let shadowMargin: CGFloat = 0
+
+    let width: CGFloat
+
+    init(width: CGFloat) {
+        self.width = min(max(width, Self.widths.lowerBound), Self.widths.upperBound)
+    }
+
+    var screenSize: CGSize {
+        let screenWidth = width - Self.inset * 2
+        return CGSize(width: screenWidth, height: (screenWidth * 201 / 292).rounded())
+    }
+
+    /// Setup has no engraving: its screen takes that space, keeping the body the same size,
+    /// and the gap above the keys becomes the regular inset.
+    var setupScreenHeight: CGFloat { screenSize.height + Self.engravingHeight + Self.engravingGap - Self.inset }
+
+    var size: CGSize {
+        CGSize(width: width,
+               height: Self.inset + screenSize.height + Self.engravingHeight + Self.engravingGap + Self.keyHeight + Self.inset)
+    }
 }
 
 struct PanelRoot: View {
@@ -30,7 +45,6 @@ struct PanelRoot: View {
 
     var body: some View {
         HandheldDevice()
-            .padding(Metrics.shadowMargin)
             .fixedSize()
     }
 }
@@ -41,15 +55,16 @@ struct HandheldDevice: View {
 
     var body: some View {
         let dark = scheme == .dark
+        let layout = model.layout
         VStack(spacing: 0) {
             Group {
                 if model.showingSetup { SetupScreen() } else { LiveScreen() }
             }
             // The screen is dark in both themes, so its controls always use dark-mode colors.
             .environment(\.colorScheme, .dark)
-            .frame(width: Metrics.screenSize.width,
-                   height: model.showingSetup ? Metrics.setupScreenHeight : Metrics.screenSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: Metrics.innerRadius, style: .continuous))
+            .frame(width: layout.screenSize.width,
+                   height: model.showingSetup ? layout.setupScreenHeight : layout.screenSize.height)
+            .clipShape(RoundedRectangle(cornerRadius: PanelLayout.innerRadius, style: .continuous))
             .overlay(ScreenBezel())
 
             if !model.showingSetup {
@@ -61,17 +76,62 @@ struct HandheldDevice: View {
                         .foregroundStyle(dark ? Color.white.opacity(0.55) : Color.black.opacity(0.60))
                 }
                 .padding(.horizontal, 10)
-                .frame(height: Metrics.engravingHeight, alignment: .bottom)
+                .frame(height: PanelLayout.engravingHeight, alignment: .bottom)
             }
 
             Group {
                 if model.showingSetup { SetupKeys(dark: dark) } else { PanKeys(dark: dark) }
             }
-            .padding(.top, model.showingSetup ? Metrics.inset : Metrics.engravingGap)
+            .padding(.top, model.showingSetup ? PanelLayout.inset : PanelLayout.engravingGap)
         }
-        .padding(Metrics.inset)
-        .frame(width: Metrics.deviceWidth)
+        .padding(PanelLayout.inset)
+        .frame(width: layout.width)
         .background(DeviceBody(dark: dark))
+        .overlay(alignment: .bottomTrailing) { ResizeGrip(dark: dark) }
+    }
+}
+
+// MARK: - Resize grip
+
+/// Corner handle: drag to the right or down to widen the panel. It reads the pointer in screen
+/// coordinates, because the window resizes under the gesture and local coordinates would shift.
+struct ResizeGrip: View {
+    @EnvironmentObject var model: AppModel
+    let dark: Bool
+    @State private var drag: (width: CGFloat, pointerX: CGFloat)?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Color.clear
+            ForEach([14.0, 17, 20], id: \.self) { inset in
+                Circle()
+                    .fill(dark ? Color.white.opacity(0.55) : Color.black.opacity(0.60))
+                    .frame(width: 2, height: 2)
+                    .offset(x: -(inset - 1), y: -(34 - inset - 1))
+            }
+        }
+        .frame(width: 22, height: 22)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside {
+                NSCursor.frameResize(position: .bottomRight, directions: .all).push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                let pointerX = NSEvent.mouseLocation.x
+                let start = drag ?? (model.layout.width, pointerX)
+                drag = start
+                model.resize(to: start.width + (pointerX - start.pointerX))
+            }
+            .onEnded { _ in
+                drag = nil
+                model.endResize()
+            })
+        .help("Drag to resize")
+        .accessibilityLabel("Resize panel")
     }
 }
 
@@ -81,7 +141,7 @@ struct DeviceBody: View {
     let dark: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Metrics.bodyRadius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: PanelLayout.bodyRadius, style: .continuous)
         shape
             .fill(LinearGradient(
                 // Body sits a step darker than the keys so they read as raised (contrast ~1.4:1).
@@ -100,7 +160,7 @@ struct DeviceBody: View {
 /// Inner shadow and hairline that make the screen look set into the body.
 struct ScreenBezel: View {
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Metrics.innerRadius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: PanelLayout.innerRadius, style: .continuous)
         ZStack {
             shape.stroke(Color.black.opacity(0.65), lineWidth: 5).blur(radius: 4).offset(y: 2).mask(shape)
             shape.strokeBorder(Color.black.opacity(0.55), lineWidth: 1)
@@ -355,7 +415,7 @@ final class VideoHostView: NSView {
         self.videoLayer = videoLayer
         super.init(frame: .zero)
         let host = CALayer()
-        host.cornerRadius = Metrics.innerRadius
+        host.cornerRadius = PanelLayout.innerRadius
         host.cornerCurve = .continuous
         host.masksToBounds = true
         layer = host
@@ -402,7 +462,7 @@ struct KeyPill: View {
                 .frame(width: 1, height: 22)
             half(right)
         }
-        .frame(height: Metrics.keyHeight)
+        .frame(height: PanelLayout.keyHeight)
         .background(KeySurface(dark: dark))
         .clipShape(Capsule(style: .continuous))
         .modifier(KeyShadow(dark: dark))
@@ -531,7 +591,7 @@ struct SetupScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(Metrics.screenPadding)
+            .padding(PanelLayout.screenPadding)
         }
         .onAppear { focus = model.draft.user.isEmpty ? .user : .password }
     }
@@ -591,7 +651,7 @@ struct SetupKeys: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle(dark: dark))
-        .frame(height: Metrics.keyHeight)
+        .frame(height: PanelLayout.keyHeight)
         .background(KeySurface(dark: dark))
         .clipShape(Capsule(style: .continuous))
         .modifier(KeyShadow(dark: dark))
