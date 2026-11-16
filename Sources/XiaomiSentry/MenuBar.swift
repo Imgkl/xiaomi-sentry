@@ -93,6 +93,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let panel: FloatingPanel
     private var clickMonitor: Any?
+    /// Where and when an outside click last closed the panel. macOS 27 reports the press on this
+    /// app's own menu bar icon as an outside click, so the icon's action that follows must not reopen.
+    private var outsideClose: (time: Date, point: NSPoint)?
     private var keyMonitor: Any?
 
     init(model: AppModel) {
@@ -127,6 +130,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             showMenu()
         } else if panel.isVisible {
             hide()
+        } else if let close = outsideClose, Date().timeIntervalSince(close.time) < 0.5,
+                  hypot(NSEvent.mouseLocation.x - close.point.x, NSEvent.mouseLocation.y - close.point.y) < 4 {
+            outsideClose = nil   // this click already closed the panel
         } else {
             show()
         }
@@ -156,7 +162,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.panel.invalidateShadow() }
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            Task { @MainActor in self?.hide() }
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in
+                self?.outsideClose = (Date(), point)
+                self?.hide()
+            }
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self, self.panel.isKeyWindow else { return event }
