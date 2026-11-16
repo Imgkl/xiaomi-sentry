@@ -33,7 +33,7 @@ The screenshots show a drawn placeholder picture, not a camera feed.
 scripts/build-app.sh --install
 ```
 
-This builds `Xiaomi Sentry.app`, moves it to `/Applications` and starts it, so only one copy exists. Use `--open` instead to run it from `build/` without installing. It is signed with your Apple Development certificate if you have one, otherwise ad hoc; no paid developer account is needed. With ad hoc signing, macOS may ask for Local Network access again after a rebuild. A copy built on your own Mac opens without a Gatekeeper warning. A copy downloaded from elsewhere needs System Settings → Privacy & Security → Open Anyway once.
+This builds `Xiaomi Sentry.app`, moves it to `/Applications` and starts it, so only one copy exists. Use `--open` instead to run it from `build/` without installing. It is signed with your Apple Development certificate if you have one, otherwise ad hoc; no paid developer account is needed. To pin one certificate, put its name or SHA-1 from `security find-identity -v -p codesigning` in a `.signing-identity` file at the repo root. With ad hoc signing, macOS may ask for Local Network access again after a rebuild. A copy built on your own Mac opens without a Gatekeeper warning. A copy downloaded from elsewhere needs System Settings → Privacy & Security → Open Anyway once.
 
 On first use macOS asks for Local Network access. Allow it, or the app cannot reach go2rtc.
 
