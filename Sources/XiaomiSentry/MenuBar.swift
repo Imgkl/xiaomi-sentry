@@ -58,7 +58,8 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .utilityWindow
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        isMovableByWindowBackground = true
         contentView = content
     }
 
@@ -93,10 +94,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let model: AppModel
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let panel: FloatingPanel
-    private var clickMonitor: Any?
-    /// Where and when an outside click last closed the panel. macOS 27 reports the press on this
-    /// app's own menu bar icon as an outside click, so the icon's action that follows must not reopen.
-    private var outsideClose: (time: Date, point: NSPoint)?
     private var keyMonitor: Any?
     private var layoutSubscription: AnyCancellable?
 
@@ -124,9 +121,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // A held arrow key never gets its key-up once the panel loses focus, so stop the hold here.
         NotificationCenter.default.addObserver(self, selector: #selector(panelResignedKey),
                                                name: NSWindow.didResignKeyNotification, object: panel)
+        NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
+                                               name: NSWindow.didMoveNotification, object: panel)
     }
 
     @objc private func panelResignedKey() { model.endHold() }
+
+    @objc private func panelMoved() {
+        AppSettings.panelTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+    }
 
     @objc private func statusItemClicked() {
         let event = NSApp.currentEvent
@@ -134,48 +137,50 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             showMenu()
         } else if panel.isVisible {
             hide()
-        } else if let close = outsideClose, Date().timeIntervalSince(close.time) < 0.5,
-                  hypot(NSEvent.mouseLocation.x - close.point.x, NSEvent.mouseLocation.y - close.point.y) < 4 {
-            outsideClose = nil   // this click already closed the panel
         } else {
             show()
         }
     }
 
     func show() {
-        // Already open: just bring it forward; adding monitors again would leak them.
+        // Already open: just bring it forward; adding the key monitor again would leak it.
         if panel.isVisible {
             panel.makeKeyAndOrderFront(nil)
             return
         }
         let size = model.layout.size
-        // On macOS 27 the status item's own window can be a 0x0 placeholder, so its frame
-        // is not a safe anchor. Use the pointer (it is on the icon after a click) and the
-        // screen it is on. The menu bar is the gap above that screen's visible frame.
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? .zero
-        var x = mouse.x - size.width / 2
-        x = min(max(x, visible.minX + 6), visible.maxX - size.width - 6)
-        let y = visible.maxY - 6 - size.height
-        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        panel.setFrame(NSRect(origin: savedOrigin(for: size) ?? firstPlacement(for: size), size: size), display: true)
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
         // SwiftUI draws after the window is ordered in; rebuild the shadow from the drawn outline.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.panel.invalidateShadow() }
 
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            let point = NSEvent.mouseLocation
-            Task { @MainActor in
-                self?.outsideClose = (Date(), point)
-                self?.hide()
-            }
-        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self, self.panel.isKeyWindow else { return event }
             return self.handleKey(event) ? nil : event
         }
         model.panelDidOpen()
+    }
+
+    /// The remembered spot, clamped so the whole window is on the screen it overlaps.
+    /// Nil when nothing is saved or that spot is no longer on any connected screen.
+    private func savedOrigin(for size: CGSize) -> NSPoint? {
+        guard let topLeft = AppSettings.panelTopLeft else { return nil }
+        let frame = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        guard let visible = NSScreen.screens.map(\.visibleFrame).first(where: { $0.intersects(frame) }) else { return nil }
+        return NSPoint(x: min(max(frame.minX, visible.minX), visible.maxX - size.width),
+                       y: min(max(frame.minY, visible.minY), visible.maxY - size.height))
+    }
+
+    /// On macOS 27 the status item's own window can be a 0x0 placeholder, so its frame
+    /// is not a safe anchor. Use the pointer (it is on the icon after a click) and the
+    /// screen it is on. The menu bar is the gap above that screen's visible frame.
+    private func firstPlacement(for size: CGSize) -> NSPoint {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? .zero
+        let x = min(max(mouse.x - size.width / 2, visible.minX + 6), visible.maxX - size.width - 6)
+        return NSPoint(x: x, y: visible.maxY - 6 - size.height)
     }
 
     /// Keeps the top-left corner fixed so the panel grows down and to the right from under the menu bar.
@@ -197,9 +202,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard panel.isVisible else { return }
         panel.orderOut(nil)
         statusItem.button?.highlight(false)
-        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        clickMonitor = nil
         keyMonitor = nil
         model.panelDidClose()
     }
@@ -230,7 +233,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func showMenu() {
-        hide()
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
