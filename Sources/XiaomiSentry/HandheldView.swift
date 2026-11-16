@@ -87,7 +87,7 @@ struct HandheldDevice: View {
         }
         .padding(PanelLayout.inset)
         .frame(width: layout.width)
-        .background(DeviceBody(dark: dark))
+        .background(DeviceBody(dark: dark).gesture(WindowDragGesture()))
         .overlay(alignment: .bottomTrailing) { ResizeGrip(dark: dark) }
     }
 }
@@ -424,6 +424,8 @@ final class VideoHostView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    override var mouseDownCanMoveWindow: Bool { true }
 
     override func layout() {
         super.layout()

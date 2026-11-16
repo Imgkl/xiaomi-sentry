@@ -11,7 +11,7 @@ The screenshots show a drawn placeholder picture, not a camera feed.
 
 ## What it does
 
-- Opens from a camera icon in the menu bar. Opening the app again (Finder, Spotlight) also opens the panel.
+- Shows from a camera icon in the menu bar. Opening the app again (Finder, Spotlight) also shows the window.
 - Plays the camera natively: go2rtc's fMP4 stream over a WebSocket, decoded by the Mac's hardware HEVC decoder. No web view, no WebRTC.
 - Pans and tilts. Hold a key or an arrow key to keep moving; a tap is one step.
 - Remembers the last camera you picked and opens it next time.
@@ -45,10 +45,12 @@ On first use macOS asks for Local Network access. Allow it, or the app cannot re
    - Left key: pan. Right key: tilt. Arrow keys work too. Hold to keep moving.
    - Round chip or dots: switch camera. Keys 1 to 9 also switch.
    - Right-click the icon: cameras, appearance, open at login, settings, reconnect, quit.
-   - Drag the panel's bottom-right corner to make the picture bigger. The size is remembered.
-   - Esc or a click outside closes the panel.
+   - Click the icon to show or hide the window. Esc hides it too.
+   - Drag the window to move it anywhere. It floats above other windows on every Space.
+   - Drag the window's bottom-right corner to make the picture bigger.
+   - Size and position are remembered.
 
-The stream stays open for 60 seconds after you close the panel, so a quick reopen is instant.
+The stream stays open for 60 seconds after you hide the window, so a quick reopen is instant.
 
 ## Security
 

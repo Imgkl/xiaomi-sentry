@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Security
 import SentryCore
@@ -40,6 +41,12 @@ enum AppSettings {
     static var panelWidth: CGFloat {
         get { defaults.object(forKey: "panelWidth") as? Double ?? 320 }
         set { defaults.set(newValue, forKey: "panelWidth") }
+    }
+
+    /// Top-left corner of the panel in screen coordinates, so it reopens where it was left.
+    static var panelTopLeft: NSPoint? {
+        get { (defaults.array(forKey: "panelTopLeft") as? [Double]).map { NSPoint(x: $0[0], y: $0[1]) } }
+        set { defaults.set(newValue.map { [Double($0.x), Double($0.y)] }, forKey: "panelTopLeft") }
     }
 
     static var lastStream: String? {
